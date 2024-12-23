@@ -19,15 +19,14 @@ root
 ├── token-path-prediction      >>  implementation of dataloader
 ├── patching_*.py              >>  Injecting code into HuggingFace
 ├── tokenizer*                 >>  Patching Ernie Layout's tokenizer to fix its bug
-├── training_ernie.py          >>  fine-tuning code
+├── training_ernie.py          >>  fine-tuning code for Ernie Layout
 ├── requirements.txt
 ├── test_markdown.py           >>  get scores for the baseline, PromptLookup, CopyLookup
 └── utils.py
 ```
 
 # More models on the waiting list
-- [Vary](https://github.com/Ucas-HaoranWei/Vary) (Weights not released yet.)
-- [LOCR](https://arxiv.org/abs/2403.02127) (Codebase & Weights not released yet.)
+- [Vary](https://github.com/Ucas-HaoranWei/Vary) (Weights not released yet, and emails requesting weights were never answered)
 
 ## Acknowledgments
 This repository builds on top of the [Nougat](https://github.com/facebookresearch/nougat), [Mugat](https://github.com/aimagelab/mugat?tab=readme-ov-file), [ERNIE-Layout-Pytorch](https://github.com/NormXU/ERNIE-Layout-Pytorch?tab=readme-ov-file) and [Token-Path-Prediction](https://github.com/WinterShiver/Token-Path-Prediction) repository.

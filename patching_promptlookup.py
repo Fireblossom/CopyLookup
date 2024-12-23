@@ -7,7 +7,9 @@ from transformers.generation import GenerationConfig, LogitsProcessorList, Candi
 from transformers import PreTrainedModel, VisionEncoderDecoderModel
 from transformers.models.kosmos2_5.modeling_kosmos2_5 import Kosmos2_5TextForCausalLM
 from mugat.nougat.modeling_mbart import MBartForCausalLM
-
+from transformers.models.mllama.modeling_mllama import MllamaForConditionalGeneration
+from transformers.models.qwen2_vl.modeling_qwen2_vl import Qwen2VLForConditionalGeneration
+from transformers.generation import candidate_generator
 
 class PromptLookupCandidateGeneratiorMod(CandidateGenerator):
     def __init__(
@@ -84,11 +86,14 @@ def _get_candidate_generator(
     inputs_tensor: torch.Tensor,
     assistant_model: "PreTrainedModel",
     logits_processor: LogitsProcessorList,
+    target_tokenizer: "PreTrainedTokenizerBase",
+    assistant_tokenizer: "PreTrainedTokenizerBase",
     model_kwargs: Dict,
 ) -> CandidateGenerator:
     """
     Returns the candidate generator to be used in `assisted_generation`
     """
+    different_tokenizers = all(v is not None for v in (assistant_model, target_tokenizer, assistant_tokenizer))
     if "pdf_text_ids" in model_kwargs:
         candidate_generator = PromptLookupCandidateGeneratiorMod(
             pdf_text_ids=model_kwargs["pdf_text_ids"].to(input_ids.device),
@@ -101,6 +106,17 @@ def _get_candidate_generator(
             num_output_tokens=generation_config.prompt_lookup_num_tokens,
             max_matching_ngram_size=generation_config.max_matching_ngram_size,
             max_length=generation_config.max_length,
+        )
+    elif different_tokenizers:
+        candidate_generator = AssistedCandidateGeneratorDifferentTokenizers(
+            input_ids=input_ids,
+            assistant_model=assistant_model,
+            generation_config=generation_config,
+            model_kwargs=model_kwargs,
+            inputs_tensor=inputs_tensor,
+            logits_processor=logits_processor,
+            target_tokenizer=target_tokenizer,
+            assistant_tokenizer=assistant_tokenizer,
         )
     else:
         candidate_generator = AssistedCandidateGenerator(
@@ -176,6 +192,64 @@ def _validate_model_kwargs(self, model_kwargs: Dict[str, Any]):
             f"The following `model_kwargs` are not used by the model: {unused_model_args} (note: typos in the"
             " generate arguments will also show up in this list)"
         )
+    
+
+def _crop_past_key_values(model, past_key_values, max_length):
+    """Crops the past key values up to a certain maximum length."""
+    new_past = []
+    if model.config.is_encoder_decoder:
+        for idx in range(len(past_key_values)):
+            new_past.append(
+                (
+                    past_key_values[idx][0][:, :, :max_length, :],
+                    past_key_values[idx][1][:, :, :max_length, :],
+                    past_key_values[idx][2],
+                    past_key_values[idx][3],
+                )
+            )
+        past_key_values = tuple(new_past)
+    # gptbigcode is special and stores kv in shape (batch_size, seq_len, dim), if it's a multi_query model
+    elif "gptbigcode" in model.__class__.__name__.lower() or (
+        model.config.architectures is not None and "gptbigcode" in model.config.architectures[0].lower()
+    ):
+        if model.config.multi_query:
+            for idx in range(len(past_key_values)):
+                past_key_values[idx] = past_key_values[idx][:, :max_length, :]
+        else:
+            for idx in range(len(past_key_values)):
+                past_key_values[idx] = past_key_values[idx][:, :, :max_length, :]
+    elif model.__class__.__name__.lower().startswith("mllama") or (
+        model.config.architectures is not None and model.config.architectures[0].lower().startswith("mllama")
+    ):
+        # DynamicCache but do not filter cross attention layers.
+        if max_length < 0:
+            max_length = past_key_values.get_seq_length() - abs(max_length)
+
+        if past_key_values.get_seq_length() <= max_length:
+            return past_key_values
+        
+        past_key_values._seen_tokens = max_length
+
+        for idx in range(len(past_key_values.key_cache)):
+            if past_key_values.key_cache[idx] != [] and "Cross" not in model.language_model.model.layers[idx].__class__.__name__:
+                past_key_values.key_cache[idx] = past_key_values.key_cache[idx][..., :max_length, :]
+                past_key_values.value_cache[idx] = past_key_values.value_cache[idx][..., :max_length, :]
+
+    elif isinstance(past_key_values, DynamicCache):
+        past_key_values.crop(max_length)
+    elif past_key_values is not None:
+        for idx in range(len(past_key_values)):
+            if past_key_values[idx] != ([], []):
+                new_past.append(
+                    (
+                        past_key_values[idx][0][:, :, :max_length, :],
+                        past_key_values[idx][1][:, :, :max_length, :],
+                    )
+                )
+            else:
+                new_past.append((past_key_values[idx][0], past_key_values[idx][1]))
+        past_key_values = tuple(new_past)
+    return past_key_values
 
 
 def apply_patching_promptlookup():
@@ -185,3 +259,8 @@ def apply_patching_promptlookup():
     Kosmos2_5TextForCausalLM._validate_model_kwargs = _validate_model_kwargs
     MBartForCausalLM._get_candidate_generator = _get_candidate_generator
     MBartForCausalLM._validate_model_kwargs = _validate_model_kwargs
+    MllamaForConditionalGeneration._get_candidate_generator = _get_candidate_generator
+    MllamaForConditionalGeneration._validate_model_kwargs = _validate_model_kwargs
+    Qwen2VLForConditionalGeneration._get_candidate_generator = _get_candidate_generator
+    Qwen2VLForConditionalGeneration._validate_model_kwargs = _validate_model_kwargs
+    candidate_generator._crop_past_key_values.__code__ = _crop_past_key_values.__code__

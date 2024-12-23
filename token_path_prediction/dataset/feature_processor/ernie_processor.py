@@ -48,8 +48,11 @@ class ErnieProcessor:
         layouts = []
         labels = []
         if isinstance(sample['json'], str):
-            if sample['json'].startswith('/nfs/home/duan'): # fix path
-                sample['json'] = '/pfss/mlde/users/cd58hofa/rainbow_bank/' + sample['json'][28:]
+            if sample['json'].startswith('/nfs/home/duan') and not os.path.isdir('/nfs/home/duan'): # fix path
+                sample['json'] = self.data_dir + sample['json'][28:]
+                sample['json'] = json.load(open(sample['json']))
+            elif sample['json'].startswith('/pfss/mlde/users/cd58hofa/rainbow_bank/') and not os.path.isdir('/pfss/mlde/users/cd58hofa/rainbow_bank/'): # fix path
+                sample['json'] = self.data_dir + sample['json'][39:]
                 sample['json'] = json.load(open(sample['json']))
             elif sample['json'].startswith('{'): # fix path
                 sample['json'] = json.loads(sample['json'])

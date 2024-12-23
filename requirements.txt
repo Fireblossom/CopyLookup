@@ -20,6 +20,7 @@ torchmetrics==0.11.4
 tqdm
 ujson==5.10.0
 albumentations==1.4.8
+albucore==0.0.16
 pypdf
 orjson
 pypdfium2

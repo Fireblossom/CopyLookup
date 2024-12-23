@@ -6,7 +6,7 @@ Copyright (c) Meta Platforms, Inc. and affiliates.
 """
 import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-os.environ['HF_HOME'] = '/pfss/mlde/users/cd58hofa/huggingface/'
+#os.environ['HF_HOME'] = '/pfss/mlde/users/cd58hofa/huggingface/'
 
 import argparse
 import json
@@ -21,7 +21,7 @@ from PIL import Image
 import time
 
 from transformers import NougatProcessor, VisionEncoderDecoderModel
-from transformers import AutoTokenizer, LayoutLMv3ImageProcessor, AutoProcessor, Kosmos2_5ForConditionalGeneration
+from transformers import AutoTokenizer, LayoutLMv3ImageProcessor, AutoProcessor, MllamaForConditionalGeneration, Kosmos2_5ForConditionalGeneration, Qwen2VLForConditionalGeneration
 from mugat.nougat import NougatModel as MugatModel
 from mugat.nougat.utils.checkpoint import get_checkpoint
 
@@ -79,7 +79,7 @@ def test(args):
     ernie_image_processor = LayoutLMv3ImageProcessor(apply_ocr=False)
     ernie_processor = ErnieLayoutProcessor(image_processor=ernie_image_processor, tokenizer=tokenizer)
     data_processor = ErniePLProcessor(
-        data_dir='/pfss/mlde/users/cd58hofa/rainbow_bank/', 
+        data_dir='/raid/duan/cd58hofa/rainbow_bank/', 
         ernie_processor=ernie_processor, 
         max_length=1024
     )
@@ -89,7 +89,7 @@ def test(args):
         processor = NougatProcessor.from_pretrained(repo)
         model = VisionEncoderDecoderModel.from_pretrained(repo, device_map=device, torch_dtype=dtype)
     elif args.vl_model == 'mugat':
-        repo = "/pfss/mlde/users/cd58hofa/mugat_ckpt"
+        repo = "/pfss/mlde/users/cd58hofa/mugat_ckpt" # hard coded local ckpt
         processor = NougatProcessor.from_pretrained("facebook/nougat-base")
         model = MugatModel.from_pretrained(get_checkpoint(repo), device_map=device, torch_dtype=dtype)
         model.config.max_length=1024
@@ -99,13 +99,26 @@ def test(args):
         repo = "microsoft/kosmos-2.5"
         processor = AutoProcessor.from_pretrained(repo)
         model = Kosmos2_5ForConditionalGeneration.from_pretrained(repo, device_map=device, torch_dtype=dtype)
+    elif args.vl_model == 'llama_3.2':
+        repo = "/raid/duan/cache/" # hard coded local ckpt
+        processor = AutoProcessor.from_pretrained(repo)
+        model = MllamaForConditionalGeneration.from_pretrained(repo, device_map=device, torch_dtype=dtype)
+
+    elif args.vl_model == 'qwen2-vl':
+        repo = "Qwen/Qwen2-VL-72B-Instruct-AWQ"
+        processor = AutoProcessor.from_pretrained(repo)
+        model = Qwen2VLForConditionalGeneration.from_pretrained(
+            repo, torch_dtype=torch.float16,
+            attn_implementation="flash_attention_2",
+            device_map="auto",
+        )
     else:
         raise NotImplementedError
 
     dataset = RainbowBankDataset(
         data_dir=args.data_dir,
         data_processor=data_processor,
-        dataset_name='quant_ph.txt'
+        dataset_name=args.dataset_name # 'quant_ph.txt'
     )
 
     data_loader = torch.utils.data.DataLoader(
@@ -162,6 +175,19 @@ def test(args):
             height, width = inputs.pop("height"), inputs.pop("width")
             inputs = {k: v.to(device) if v is not None else None for k, v in inputs.items()}
             inputs["flattened_patches"] = inputs["flattened_patches"].to(dtype)
+        elif args.vl_model == 'llama_3.2':
+            prompt = '<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\n<|image|>Convert the following PDF page to Markdown.\nReturn only the Markdown with no explanation text.\nLeave out any page numbers and redundant headers or footers.\nDo not include any code blocks (e.g. "```markdown" or "```") in the response.\nIf unable to parse, return an empty string.<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n'
+            inputs = processor(text=[prompt], images=images, return_tensors="pt").to(model.device)
+        elif args.vl_model == "qwen2-vl":
+            prompt = '<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\n<|vision_start|><|image_pad|><|vision_end|>Convert the following PDF page to Markdown.\nReturn only the Markdown with no explanation text.\nLeave out any page numbers and redundant headers or footers.\nDo not include any code blocks (e.g. "```markdown" or "```") in the response.\nIf unable to parse, return an empty string.<|im_end|>\n<|im_start|>assistant\n'
+            inputs = processor(
+                text=[prompt],
+                images=images,
+                videos=None,
+                padding=True,
+                return_tensors="pt",
+            )
+            inputs = inputs.to(model.device)
         sample = {k: v.to(device) if v is not None else None for k, v in sample.items()}
         sample['pixel_values'] = sample['pixel_values'].half()
 
@@ -174,12 +200,25 @@ def test(args):
                     next_image_tensors=next_image_tensor.to(device).unsqueeze(0),
                     early_stopping=False,
                 )
+            elif processor.tokenizer.unk_token_id is None:
+                generated_ids = model.generate(
+                    **inputs,
+                    max_new_tokens=1024,
+                )
             else:
                 generated_ids = model.generate(
                     **inputs,
                     max_new_tokens=1024,
                     bad_words_ids=[[processor.tokenizer.unk_token_id]],
                 )
+            if args.debug:
+                generated_ids_trimmed = [
+                    out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+                ]
+                output_text = processor.batch_decode(
+                    generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+                )
+                print(output_text)
 
         elif args.lookup_decoding == 'promptlookup':
             pdf_texts = [text[0] for text in texts]
@@ -194,6 +233,14 @@ def test(args):
                     max_matching_ngram_size=3,
                     pdf_text_ids = pdf_texts_ids,
                 )
+            elif processor.tokenizer.unk_token_id is None:
+                generated_ids = model.generate(
+                    **inputs,
+                    max_new_tokens=1024,
+                    prompt_lookup_num_tokens=10,
+                    max_matching_ngram_size=3,
+                    pdf_text_ids = pdf_texts_ids,
+                )
             else:
                 generated_ids = model.generate(
                     **inputs,
@@ -203,6 +250,14 @@ def test(args):
                     max_matching_ngram_size=3,
                     pdf_text_ids = pdf_texts_ids,
                 )
+            if args.debug:
+                generated_ids_trimmed = [
+                    out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+                ]
+                output_text = processor.batch_decode(
+                    generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+                )
+                print(output_text)
 
         elif args.lookup_decoding == 'copylookup':
             
@@ -226,6 +281,14 @@ def test(args):
                     max_matching_ngram_size=3,
                     prompt_lookup_num_tokens=10,
                 )
+            elif processor.tokenizer.unk_token_id is None:
+                generated_ids = model.generate(
+                    **inputs,
+                    max_new_tokens=1024,
+                    copy_seqs = copy_seqs,
+                    max_matching_ngram_size=3,
+                    prompt_lookup_num_tokens=10,
+                )
             else:
                 generated_ids = model.generate(
                     **inputs,
@@ -235,15 +298,25 @@ def test(args):
                     max_matching_ngram_size=3,
                     prompt_lookup_num_tokens=10,
                 )
+            if args.debug:
+                generated_ids_trimmed = [
+                    out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+                ]
+                output_text = processor.batch_decode(
+                    generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+                )
+                print(output_text)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--checkpoint", "-c", type=Path, default=None)
-    parser.add_argument("--data_dir", type=str, default='/pfss/mlde/users/cd58hofa/rainbow_bank')
+    parser.add_argument("--data_dir", type=str, default='/raid/duan/cd58hofa/rainbow_bank')
+    parser.add_argument("--dataset_name", type=str, default='quant_ph.txt')
     parser.add_argument("--batch_size", "-b", type=int, default=1)
-    parser.add_argument("--vl_model", type=str, default='kosmos_2.5')
+    parser.add_argument("--vl_model", type=str, default='llama_3.2')
     parser.add_argument("--lookup_decoding", type=str, default=None)
+    parser.add_argument("--debug", action="store_true", default=False)
     args, left_argv = parser.parse_known_args()
 
 

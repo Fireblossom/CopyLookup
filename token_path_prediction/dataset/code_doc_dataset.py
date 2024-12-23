@@ -5,7 +5,7 @@ import jieba
 import pandas as pd
 from datasets import ClassLabel
 
-from torch.utils.data.dataset import T_co, IterableDataset
+from torch.utils.data.dataset import _T_co, IterableDataset
 from transformers import BatchEncoding, AutoTokenizer
 from torch.utils.data import Dataset, DataLoader
 import os.path as osp
@@ -59,7 +59,7 @@ class DocumentDirectoryDataset(Dataset):
     def __len__(self):
         return len(self.samples)
 
-    def __getitem__(self, index) -> T_co:
+    def __getitem__(self, index) -> _T_co:
         self.samples[index]['json'] = json.load(open(self.samples[index]['json_file'], "r", encoding="utf-8"))
         data_feature = self.data_processor.process(self.samples[index])
         data_feature["data_index"] = index

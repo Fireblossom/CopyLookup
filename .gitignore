@@ -3,5 +3,7 @@ receipt_00008.png
 __pycache__/
 .vscode/
 get_checkpoint/
-*.ipynb
 image.png
+data/reading_bank
+data/pretrain
+data/FUNSD_entity_linking
