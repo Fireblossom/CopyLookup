@@ -163,6 +163,7 @@ class ErnieLayoutTokenizerFast(XLNetTokenizerFast):
         # Set the truncation and padding strategy and restore the initial configuration
         self.set_truncation_and_padding(
             padding_strategy=padding_strategy,
+            padding_side='right',
             truncation_strategy=truncation_strategy,
             max_length=max_length,
             stride=stride,
