@@ -12,19 +12,19 @@
         <header>
             <h3 style="color:rgb(165, 35, 28); padding: 2px 0;"> NLDB 2025 ∙ Long Paper ∙ Oral </h3>
             <h2 style="padding: 10px 0;"> Accelerating End-to-End PDF to Markdown Conversion through Assisted Generation </h2>
-            <h3> Author(s): 
-                <a href="https://fireblossom.github.io/">Changxu Duan</a>
-            </h3>
-            <h3>
+            <h4> Author(s): 
+                <a id="paper_link" href="https://fireblossom.github.io/">Changxu Duan</a>
+            </h4>
+            <h4>
                 [<a id="paper_link" href="https://github.com/Fireblossom/CopyLookup">GitHub</a>]
                 [<a id="paper_link">PDF</a> (Coming Soon)] 
-            </h3>
+            </h4>
         </header>
         
         <div class="overview">
             <h3>Overview</h3>
             <p>
-                Scientific knowledge is increasingly locked in machine-unreadable formats like PDFs, making it difficult to index, analyze, and reuse. While existing end-to-end transformer-based models can convert screenshots of PDFs into Markdown, they are often inefficient—decoding each token from scratch even when much of the content can be directly copied. 
+                Scientific knowledge is increasingly locked in machine-unreadable formats like PDFs, making it difficult to index, analyze, and reuse. While existing end-to-end transformer-based models can convert screenshots of PDFs into Markdown, they are often inefficient-decoding each token from scratch even when much of the content can be directly copied. 
                 This inefficiency poses a significant bottleneck, especially for dense scientific documents where textual overlap between the PDF and the desired output is high.
             </p>
         <!--
@@ -38,10 +38,10 @@
             </p>
             <p>Key contributions include:</p>
             <ul>
-                <li> <span id="p_bold"> mPLD </span>: A plug-and-play decoding strategy requiring no model retraining, adaptable to existing Vision-Language Models. </li>
-                <li> <span id="p_bold"> CLD </span>: A novel candidate generation method that integrates a layout-aware Copyable Text Identification (CTI) component. This component uses a fine-tuned ERNIE Layout model, enhanced via LoRA and extended token length (1024 via RoPE), to classify spans as copyable or not based on document layout. </li>
-                <li> <span id="p_bold"> Simplified token classification </span>: Instead of complex multi-class layout tags, CLD uses a binary KEEP/DELETE scheme for efficient span-level predictions, resolved using a voting classifier. </li>
-                <li> <span id="p_bold"> Practical and lightweight integration:Focus on practicality </span>: Despite introducing an additional 27 MB model component, our method remains efficient and easy to integrate. It enables up to 1.7× speedup over traditional decoding approaches, while supporting real-world applications like academic search engines and scientific content structuring. </li>
+                <li> <span id="p_bold"> mPLD</span>: A plug-and-play decoding strategy requiring no model retraining, adaptable to existing Vision-Language Models. </li>
+                <li> <span id="p_bold"> CLD</span>: A novel candidate generation method that integrates a layout-aware Copyable Text Identification (CTI) component. This component uses a fine-tuned ERNIE Layout model, enhanced via LoRA and extended token length (1024 via RoPE), to classify spans as copyable or not based on document layout. </li>
+                <li> <span id="p_bold"> Simplified token classification</span>: Instead of complex multi-class layout tags, CLD uses a binary KEEP/DELETE scheme for efficient span-level predictions, resolved using a voting classifier. </li>
+                <li> <span id="p_bold"> Practical and lightweight integration</span>: Despite introducing an additional 27 MB model component, our method remains efficient and easy to integrate. It enables up to 1.7× speedup over traditional decoding approaches, while supporting real-world applications like academic search engines and scientific content structuring. </li>
             </ul>
         </div>
 
@@ -56,8 +56,7 @@
     booktitle = {Proceedings of the 30th International Conference on Natural Language & Information Systems (NLDB)},
     year      = {2025},
     month     = {July},
-    address   = {Kanazawa, Japan},
-    note      = {To be presented at NLDB 2025, 4--6 July}
+    address   = {Kanazawa, Japan}
 }
                 </pre>
             </div>
@@ -75,9 +74,9 @@
             });
             }
         </script>
-    </main>
     <footer>
         <p>Copyright &copy; 2025. All rights reserved.</p>
     </footer>
+    </main>
 </body>
 </html>

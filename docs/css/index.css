@@ -72,7 +72,7 @@ footer {
     color: rgb(0, 0, 0);
     border-top: 2px dotted #968a8a;
     padding: 10px 0;
-    margin: 0 12%;
+    margin: 0;
 }
 
 footer p {
@@ -81,19 +81,19 @@ footer p {
 }
 
 header {
-    padding: 0;
     margin: 0;
+    padding: 2% 0;
 }
 
 .overview, .citation {
     align-items: center;
     justify-content: center;
     text-align: left;
-    padding: 5% 0;
+    padding: 2% 0 5% 0;
 }
 
 #paper_link {
-    font-weight: 350;
+    font-weight: 330;
 }
 
 #p_bold {
@@ -110,12 +110,12 @@ header {
 }
 
 #bibtex {
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     font-weight: 300;
     max-height: 220px;
     overflow: auto;
     margin: 0;
-    padding-right: 30px; /* space so button doesn't cover text */
+    padding-right: 30px;
 }
 
 .copy-btn {
